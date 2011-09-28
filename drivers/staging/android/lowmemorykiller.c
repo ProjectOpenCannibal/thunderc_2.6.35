@@ -94,8 +94,7 @@ static int lowmem_shrink(struct shrinker *s, int nr_to_scan, gfp_t gfp_mask)
 	int selected_oom_adj;
 	int array_size = ARRAY_SIZE(lowmem_adj);
 	int other_free = global_page_state(NR_FREE_PAGES);
-	int other_file = global_page_state(NR_FILE_PAGES);
-#ifdev SEC_ADJUST_LMK
+#ifdef SEC_ADJUST_LMK
 	int other_file = global_page_state(NR_INACTIVE_FILE) +
             global_page_state(NR_ACTIVE_FILE);
 #else
@@ -130,7 +129,7 @@ static int lowmem_shrink(struct shrinker *s, int nr_to_scan, gfp_t gfp_mask)
 			break;
 		}
 	}
-#ifdev SEC_ADJUST_LMK
+#ifdef SEC_ADJUST_LMK
 	if (min_adj == OOM_ADJUST_MAX + 1)
 		return 0;
 #endif
@@ -215,7 +214,7 @@ static struct shrinker lowmem_shrinker = {
 
 static int __init lowmem_init(void)
 {
-	task_free_register(&tast_nb);
+	task_free_register(&task_nb);
 	register_shrinker(&lowmem_shrinker);
 	return 0;
 }
