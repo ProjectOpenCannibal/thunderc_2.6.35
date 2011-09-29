@@ -63,7 +63,7 @@ UTS_TRUNCATE="cut -b -$UTS_LEN"
 
   echo \#define UTS_VERSION \"`echo $UTS_VERSION | $UTS_TRUNCATE`\"
 
-  echo \#define LINUX_COMPILE_TIME \"`date %T`\"
+  echo \#define LINUX_COMPILE_TIME \"`date +%T`\"
 
 # LG hijacked this, fuckers!
   echo \#define LINUX_COMPILE_BY \"`whoami`\"
