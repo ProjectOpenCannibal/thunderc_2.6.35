@@ -1,7 +1,7 @@
 /*
  * Automatically generated C config: don't edit
  * Linux kernel version: 2.6.35.7
- * Mon Oct  3 11:01:52 2011
+ * Mon Oct  3 11:22:00 2011
  */
 #define AUTOCONF_INCLUDED
 #define CONFIG_NF_CONNTRACK_H323 1
@@ -313,6 +313,7 @@
 #define CONFIG_SERIAL_CORE_CONSOLE 1
 #define CONFIG_CLOCK_BASED_SLEEP_LIMIT 1
 #define CONFIG_USB_HID 1
+#define CONFIG_IOSCHED_SIO 1
 #define CONFIG_USB_SUPPORT_LGE_ANDROID_ACM_FIX 1
 #define CONFIG_ANDROID 1
 #define CONFIG_USB_GADGET_MSM_72K 1
@@ -535,7 +536,7 @@
 #define CONFIG_MSM_CAMERA 1
 #define CONFIG_DEBUG_KERNEL 1
 #define CONFIG_COMPAT_BRK 1
-#define CONFIG_LOCALVERSION "-GingerKernel-v05.99-pre"
+#define CONFIG_LOCALVERSION "-GingerKernel-v05.99-pre2"
 #define CONFIG_RADIO_ADAPTERS 1
 #define CONFIG_CRYPTO 1
 #define CONFIG_DEFAULT_MMAP_MIN_ADDR 32768
