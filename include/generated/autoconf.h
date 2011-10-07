@@ -1,7 +1,7 @@
 /*
  * Automatically generated C config: don't edit
  * Linux kernel version: 2.6.35.7
- * Thu Oct  6 01:50:39 2011
+ * Fri Oct  7 09:50:08 2011
  */
 #define AUTOCONF_INCLUDED
 #define CONFIG_NF_CONNTRACK_H323 1
@@ -537,7 +537,7 @@
 #define CONFIG_MSM_CAMERA 1
 #define CONFIG_DEBUG_KERNEL 1
 #define CONFIG_COMPAT_BRK 1
-#define CONFIG_LOCALVERSION "-GingerKernel-v05.99-pre3"
+#define CONFIG_LOCALVERSION "-GingerKernel-v06.1"
 #define CONFIG_RADIO_ADAPTERS 1
 #define CONFIG_CRYPTO 1
 #define CONFIG_DEFAULT_MMAP_MIN_ADDR 32768
