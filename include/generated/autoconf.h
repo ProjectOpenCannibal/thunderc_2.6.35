@@ -1,7 +1,7 @@
 /*
  * Automatically generated C config: don't edit
  * Linux kernel version: 2.6.35.7
- * Fri Oct  7 10:42:59 2011
+ * Fri Oct  7 14:07:51 2011
  */
 #define AUTOCONF_INCLUDED
 #define CONFIG_NF_CONNTRACK_H323 1
@@ -69,6 +69,7 @@
 #define CONFIG_XFRM_IPCOMP 1
 #define CONFIG_CRYPTO_RNG2 1
 #define CONFIG_NETFILTER_NETLINK_QUEUE 1
+#define CONFIG_TUN_MODULE 1
 #define CONFIG_USB_OTG_UTILS 1
 #define CONFIG_QUP_EXCLUSIVE_TO_CAMERA 1
 #define CONFIG_DM_CRYPT 1
