@@ -206,7 +206,6 @@ extern unsigned int nr_free_pagecache_pages(void);
 
 
 /* linux/mm/swap.c */
-extern void ____lru_cache_add(struct page *, enum lru_list lru, int tail);
 extern void __lru_cache_add(struct page *, enum lru_list lru);
 extern void lru_cache_add_lru(struct page *, enum lru_list lru);
 extern void activate_page(struct page *);
@@ -227,14 +226,9 @@ static inline void lru_cache_add_anon(struct page *page)
 	__lru_cache_add(page, LRU_INACTIVE_ANON);
 }
 
-static inline void lru_cache_add_file_tail(struct page *page, int tail)
-{
-  	____lru_cache_add(page, LRU_INACTIVE_FILE, tail);
-}
-
 static inline void lru_cache_add_file(struct page *page)
 {
-	____lru_cache_add(page, LRU_INACTIVE_FILE, 0);
+	__lru_cache_add(page, LRU_INACTIVE_FILE);
 }
 
 /* LRU Isolation modes. */
@@ -347,7 +341,7 @@ extern void __put_swap_token(struct mm_struct *);
 
 static inline int has_swap_token(struct mm_struct *mm)
 {
-	return (mm == swap_token_mm && vm_swap_full());
+	return (mm == swap_token_mm);
 }
 
 static inline void put_swap_token(struct mm_struct *mm)
@@ -506,3 +500,4 @@ mem_cgroup_count_swap_user(swp_entry_t ent, struct page **pagep)
 #endif /* CONFIG_SWAP */
 #endif /* __KERNEL__*/
 #endif /* _LINUX_SWAP_H */
+
