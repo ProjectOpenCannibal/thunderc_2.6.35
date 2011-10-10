@@ -161,7 +161,30 @@ static inline void radix_tree_replace_slot(void **pslot, void *item)
 	BUG_ON(radix_tree_is_indirect_ptr(item));
 	rcu_assign_pointer(*pslot, item);
 }
-
+/**
+ * radix_tree_deref_retry	- check radix_tree_deref_slot
+ * @arg:	pointer returned by radix_tree_deref_slot
+ * Returns:	0 if retry is not required, otherwise retry is required
+ *
+ * radix_tree_deref_retry must be used with radix_tree_deref_slot.
+ */
+static inline int radix_tree_deref_retry(void *arg)
+{
+	return unlikely((unsigned long)arg & RADIX_TREE_INDIRECT_PTR);
+}
+/**
+ * radix_tree_replace_slot      - replace item in a slot
+ * @pslot:      pointer to slot, returned by radix_tree_lookup_slot
+ * @item:       new item to store in the slot.
+ *
+ * For use with radix_tree_lookup_slot().  Caller must hold tree write locked
+ * across slot lookup and replacement.
+ */
+static inline void radix_tree_replace_slot(void **pslot, void *item)
+{
+	BUG_ON(radix_tree_is_indirect_ptr(item));
+	rcu_assign_pointer(*pslot, item);
+}
 int radix_tree_insert(struct radix_tree_root *, unsigned long, void *);
 void *radix_tree_lookup(struct radix_tree_root *, unsigned long);
 void **radix_tree_lookup_slot(struct radix_tree_root *, unsigned long);

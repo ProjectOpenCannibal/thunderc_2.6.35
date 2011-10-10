@@ -1,7 +1,7 @@
 /*
  * Automatically generated C config: don't edit
  * Linux kernel version: 2.6.35.7
- * Sun Oct  9 21:16:48 2011
+ * Sun Oct  9 21:55:42 2011
  */
 #define AUTOCONF_INCLUDED
 #define CONFIG_NF_CONNTRACK_H323 1
@@ -172,6 +172,7 @@
 #define CONFIG_IP_NF_TARGET_ECN 1
 #define CONFIG_ENABLE_WARN_DEPRECATED 1
 #define CONFIG_INPUT_GPIO 1
+#define CONFIG_CLEANCACHE 1
 #define CONFIG_DIAG_OVER_USB 1
 #define CONFIG_USB_SUPPORT_LGE_ANDROID_GADGET_FIX 1
 #define CONFIG_LGE_BCM432X_PATCH 1
