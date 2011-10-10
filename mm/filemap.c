@@ -34,6 +34,7 @@
 #include <linux/hardirq.h> /* for BUG_ON(!in_atomic()) only */
 #include <linux/memcontrol.h>
 #include <linux/mm_inline.h> /* for page_is_file_cache() */
+#include <linux/cleancache.h>
 #include "internal.h"
 
 /*
@@ -118,6 +119,11 @@
 void __remove_from_page_cache(struct page *page)
 {
 	struct address_space *mapping = page->mapping;
+
+	if (PageUptodate(page) && PageMappedToDisk(page))
+    	  cleancache_put_page(page);
+  	else
+    	  cleancache_flush_page(mapping, page);
 
 	radix_tree_delete(&mapping->page_tree, page->index);
 	page->mapping = NULL;
@@ -296,7 +302,7 @@ int filemap_fdatawait_range(struct address_space *mapping, loff_t start_byte,
 				continue;
 
 			wait_on_page_writeback(page);
-			if (PageError(page))
+			if (TestClearPageError(page))
 				ret = -EIO;
 		}
 		pagevec_release(&pvec);
@@ -434,8 +440,8 @@ out:
 }
 EXPORT_SYMBOL(add_to_page_cache_locked);
 
-int add_to_page_cache_lru(struct page *page, struct address_space *mapping,
-				pgoff_t offset, gfp_t gfp_mask)
+int __add_to_page_cache_lru(struct page *page, struct address_space *mapping,
+        pgoff_t offset, gfp_t gfp_mask, int tail)
 {
 	int ret;
 
@@ -451,11 +457,17 @@ int add_to_page_cache_lru(struct page *page, struct address_space *mapping,
 	ret = add_to_page_cache(page, mapping, offset, gfp_mask);
 	if (ret == 0) {
 		if (page_is_file_cache(page))
-			lru_cache_add_file(page);
+			lru_cache_add_file_tail(page, tail);
 		else
 			lru_cache_add_anon(page);
 	}
 	return ret;
+}
+
+int add_to_page_cache_lru(struct page *page, struct address_space *mapping,
+        pgoff_t offset, gfp_t gfp_mask)
+{
+  	return __add_to_page_cache_lru(page, mapping, offset, gfp_mask, 0);
 }
 EXPORT_SYMBOL_GPL(add_to_page_cache_lru);
 
@@ -631,7 +643,9 @@ repeat:
 	pagep = radix_tree_lookup_slot(&mapping->page_tree, offset);
 	if (pagep) {
 		page = radix_tree_deref_slot(pagep);
-		if (unlikely(!page || page == RADIX_TREE_RETRY))
+		if (unlikely(!page))
+			goto out;
+		if (radix_tree_deref_retry(page))
 			goto repeat;
 
 		if (!page_cache_get_speculative(page))
@@ -647,6 +661,7 @@ repeat:
 			goto repeat;
 		}
 	}
+out:
 	rcu_read_unlock();
 
 	return page;
@@ -764,12 +779,11 @@ repeat:
 		page = radix_tree_deref_slot((void **)pages[i]);
 		if (unlikely(!page))
 			continue;
-		/*
-		 * this can only trigger if nr_found == 1, making livelock
-		 * a non issue.
-		 */
-		if (unlikely(page == RADIX_TREE_RETRY))
+		if (radix_tree_deref_retry(page)) {
+			if (ret)
+				start = pages[ret-1]->index;
 			goto restart;
+		}
 
 		if (!page_cache_get_speculative(page))
 			goto repeat;
@@ -817,15 +831,8 @@ repeat:
 		page = radix_tree_deref_slot((void **)pages[i]);
 		if (unlikely(!page))
 			continue;
-		/*
-		 * this can only trigger if nr_found == 1, making livelock
-		 * a non issue.
-		 */
-		if (unlikely(page == RADIX_TREE_RETRY))
+		if (radix_tree_deref_retry(page))
 			goto restart;
-
-		if (page->mapping == NULL || page->index != index)
-			break;
 
 		if (!page_cache_get_speculative(page))
 			goto repeat;
@@ -834,6 +841,16 @@ repeat:
 		if (unlikely(page != *((void **)pages[i]))) {
 			page_cache_release(page);
 			goto repeat;
+		}
+
+		/*
+		 * must check mapping and index after taking the ref.
+		 * otherwise we can get both false positives and false
+		 * negatives, which is just confusing to the caller.
+		 */
+		if (page->mapping == NULL || page->index != index) {
+			page_cache_release(page);
+			break;
 		}
 
 		pages[ret] = page;
@@ -874,11 +891,7 @@ repeat:
 		page = radix_tree_deref_slot((void **)pages[i]);
 		if (unlikely(!page))
 			continue;
-		/*
-		 * this can only trigger if nr_found == 1, making livelock
-		 * a non issue.
-		 */
-		if (unlikely(page == RADIX_TREE_RETRY))
+		if (radix_tree_deref_retry(page))
 			goto restart;
 
 		if (!page_cache_get_speculative(page))
@@ -956,6 +969,28 @@ static void shrink_readahead_size_eio(struct file *filp,
 	ra->ra_pages /= 4;
 }
 
+static inline int nr_mapped(void)
+{
+  return global_page_state(NR_FILE_MAPPED) +
+    global_page_state(NR_ANON_PAGES);
+}
+
+/*
+ * This examines how large in pages a file size is and returns 1 if it is
+ * more than half the unmapped ram. Avoid doing read_page_state which is
+ * expensive unless we already know it is likely to be large enough.
+ */
+static int large_isize(unsigned long nr_pages)
+{
+  if (nr_pages * 6 > vm_total_pages) {
+     unsigned long unmapped_ram = vm_total_pages - nr_mapped();
+
+    if (nr_pages * 2 > unmapped_ram)
+      return 1;
+  }
+  return 0;
+}
+
 /**
  * do_generic_file_read - generic file read routine
  * @filp:	the file to read
@@ -980,7 +1015,7 @@ static void do_generic_file_read(struct file *filp, loff_t *ppos,
 	pgoff_t prev_index;
 	unsigned long offset;      /* offset into pagecache page */
 	unsigned int prev_offset;
-	int error;
+	int error, tail = 0;
 
 	index = *ppos >> PAGE_CACHE_SHIFT;
 	prev_index = ra->prev_pos >> PAGE_CACHE_SHIFT;
@@ -991,7 +1026,7 @@ static void do_generic_file_read(struct file *filp, loff_t *ppos,
 	for (;;) {
 		struct page *page;
 		pgoff_t end_index;
-		loff_t isize;
+		loff_t isize = 0;
 		unsigned long nr, ret;
 
 		cond_resched();
@@ -1016,6 +1051,9 @@ find_page:
 				goto page_not_up_to_date;
 			if (!trylock_page(page))
 				goto page_not_up_to_date;
+			/* Did it get truncated before we got the lock? */
+			if (!page->mapping)
+				goto page_not_up_to_date_locked;
 			if (!mapping->a_ops->is_partially_uptodate(page,
 								desc, offset))
 				goto page_not_up_to_date_locked;
@@ -1162,8 +1200,16 @@ no_cached_page:
 			desc->error = -ENOMEM;
 			goto out;
 		}
-		error = add_to_page_cache_lru(page, mapping,
-						index, GFP_KERNEL);
+		/*
+	         * If we know the file is large we add the pages read to the
+	         * end of the lru as we're unlikely to be able to cache the
+	         * whole file in ram so make those pages the first to be
+	         * dropped if not referenced soon.
+	         */
+    if (large_isize(end_index))
+      tail = 1;
+    error = __add_to_page_cache_lru(page, mapping,
+            index, GFP_KERNEL, tail);
 		if (error) {
 			page_cache_release(page);
 			if (error == -EEXIST)
@@ -2203,7 +2249,7 @@ struct page *grab_cache_page_write_begin(struct address_space *mapping,
 		gfp_notmask = __GFP_FS;
 repeat:
 	page = find_lock_page(mapping, index);
-	if (likely(page))
+	if (page)
 		return page;
 
 	page = __page_cache_alloc(mapping_gfp_mask(mapping) & ~gfp_notmask);
