@@ -3800,7 +3800,6 @@
 0x00000000	vfs_symlink	vmlinux	EXPORT_SYMBOL
 0x00000000	find_vpid	vmlinux	EXPORT_SYMBOL_GPL
 0x00000000	__round_jiffies_up_relative	vmlinux	EXPORT_SYMBOL_GPL
-0x00000000	wait_for_completion_io	vmlinux	EXPORT_SYMBOL
 0x00000000	unmap_mapping_range	vmlinux	EXPORT_SYMBOL
 0x00000000	overflowuid	vmlinux	EXPORT_SYMBOL
 0x00000000	overflowgid	vmlinux	EXPORT_SYMBOL
