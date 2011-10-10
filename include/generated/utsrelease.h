@@ -1,1 +1,1 @@
-#define UTS_RELEASE "2.6.35.7-GingerKernel-v06.2+"
+#define UTS_RELEASE "2.6.35.7-GingerKernel-v07pre+"
