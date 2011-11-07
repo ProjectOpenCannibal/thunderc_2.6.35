@@ -123,8 +123,6 @@ config CPU_FREQ_DEFAULT_GOV_SMARTASS2
 	help
 		Use the CPUFreq governor 'Smartass2' as default.
 
-endchoice
-
 config CPU_FREQ_DEFAULT_GOV_MSM7K
 	bool "msm7k"
 	select CPU_FREQ_GOV_MSM7K
