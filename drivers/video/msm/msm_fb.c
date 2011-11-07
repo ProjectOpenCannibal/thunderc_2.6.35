@@ -41,16 +41,16 @@
 #include <linux/leds.h>
 #include <linux/pm_runtime.h>
 
+#ifdef CONFIG_LGE_HIDDEN_RESET_PATCH
+#include <mach/board_lge.h>
+#endif
+
 #define MSM_FB_C
 #include "msm_fb.h"
 #include "mddihosti.h"
 #include "tvenc.h"
 #include "mdp.h"
 #include "mdp4.h"
-
-#ifdef CONFIG_HAS_EARLYSUSPEND
-#undef CONFIG_HAS_EARLYSUSPEND
-#endif
 
 #ifdef CONFIG_FB_MSM_LOGO
 #define INIT_IMAGE_FILE "/initlogo.rle"
@@ -88,6 +88,7 @@ u32 msm_fb_msg_level = 7;
 
 /* Setting mddi_msg_level to 8 prints out ALL messages */
 u32 mddi_msg_level = 5;
+int msm_fb_refesh_enabled = 1;	// LGE_CHANGE [bluerti@lge.com] 2009-07-18
 
 extern int32 mdp_block_power_cnt[MDP_MAX_BLOCK];
 extern unsigned long mdp_timer_duration;
@@ -117,24 +118,26 @@ static void msmfb_early_suspend_early(struct early_suspend *h);
 static void msmfb_late_resume_late(struct early_suspend *h);
 #endif
 
-/* LGE_CHANGE_S, [munyoung@lge.com] booting logo */
+/* LGE_CHANGE_S
+ * Change codes to remove console cursor on booting screen. Refered to VS740
+ * 2010-07-31. minjong.gong@lge.com
+ */
 #ifdef CONFIG_LGE_FBCON_INACTIVE_CONSOLE
-
 static int is_console_inactive = 0;
 
 static void msm_fb_set_console_inactive(int inactive)
 {
 
-	is_console_inactive = inactive;
+       is_console_inactive = inactive;
 }
 
 int msm_fb_get_console_inactive(void)
 {
-	return is_console_inactive;
+       return is_console_inactive;
 }
 EXPORT_SYMBOL(msm_fb_get_console_inactive);
 #endif
-/* LGE_CHANGE_E, [munyoung@lge.com] booting logo */
+/* LGE_CHANGE_E, 2010-07-31. minjong.gong@lge.com  */
 
 #ifdef MSM_FB_ENABLE_DBGFS
 
@@ -239,6 +242,13 @@ int msm_fb_detect_client(const char *name)
 
 	return ret;
 }
+
+#ifdef CONFIG_LGE_HIDDEN_RESET_PATCH
+void *lge_get_fb_addr(void)
+{
+	return (fbram - (320*480*2*2));
+}
+#endif
 
 static ssize_t msm_fb_msm_fb_type(struct device *dev,
 				  struct device_attribute *attr, char *buf)
@@ -1126,11 +1136,14 @@ static int msm_fb_register(struct msm_fb_data_type *mfd)
 	mfd->op_enable = TRUE;
 	mfd->panel_power_on = FALSE;
 
-
-#ifdef CONFIG_FB_MSM_LOGO
-	/* LGE_CHANGE,[munyoung@lge.com] booting logo */
+/* LGE_CHANGE_S
+ * Change codes to remove console cursor on booting screen. Refered to VS740
+ * 2010-07-31. minjong.gong@lge.com
+ */
+#ifdef CONFIG_LGE_FBCON_INACTIVE_CONSOLE
 	msm_fb_set_console_inactive(1);
 #endif
+/* LGE_CHANGE_E, 2010-07-31. minjong.gong@lge.com */
 
 	/* cursor memory allocation */
 	if (mfd->cursor_update) {
@@ -1343,12 +1356,15 @@ static int msm_fb_open(struct fb_info *info, int user)
 		}
 	}
 
-/* LGE_CHANGE_S, [munyoung@lge.com] booting logo */
-#ifdef CONFIG_FB_MSM_LOGO
-	if(mfd->ref_cnt > 1 && msm_fb_get_console_inactive())
-		msm_fb_set_console_inactive(0);
+/* LGE_CHANGE_S
+ * Change codes to remove console cursor on booting screen. Refered to VS740
+ * 2010-07-31. minjong.gong@lge.com
+ */
+#ifdef CONFIG_LGE_FBCON_INACTIVE_CONSOLE
+		if(mfd->ref_cnt > 1 && msm_fb_get_console_inactive())
+				msm_fb_set_console_inactive(0);
 #endif
-/* LGE_CHANGE_E, [munyoung@lge.com] booting logo */
+/* LGE_CHANGE_E, 2010-07-31. minjong.gong@lge.com */
 
 	mfd->ref_cnt++;
 	return 0;
@@ -1656,127 +1672,127 @@ int msm_fb_resume_sw_refresher(struct msm_fb_data_type *mfd)
 static int mdp_blit_split_height(struct fb_info *info,
 				struct mdp_blit_req *req)
 {
-	int ret;        
-        struct mdp_blit_req splitreq;
-        int s_x_0, s_x_1, s_w_0, s_w_1, s_y_0, s_y_1, s_h_0, s_h_1;
-        int d_x_0, d_x_1, d_w_0, d_w_1, d_y_0, d_y_1, d_h_0, d_h_1;
-                                
-        splitreq = *req;        
-        /* break dest roi at height*/
-        d_x_0 = d_x_1 = req->dst_rect.x;
-        d_w_0 = d_w_1 = req->dst_rect.w;
-        d_y_0 = req->dst_rect.y;
-        if (req->dst_rect.h % 32 == 3)
-                d_h_1 = (req->dst_rect.h - 3) / 2 - 1;
-        else if (req->dst_rect.h % 32 == 2)
-                d_h_1 = (req->dst_rect.h - 2) / 2 - 6;
-        else    
-                d_h_1 = (req->dst_rect.h - 1) / 2 - 1;
-        d_h_0 = req->dst_rect.h - d_h_1;
-        d_y_1 = d_y_0 + d_h_0;
-        if (req->dst_rect.h == 3) {
-                d_h_1 = 2;
-                d_h_0 = 2;
-                d_y_1 = d_y_0 + 1;
-        }
-                
-        /* blit first region */
-        if (((splitreq.flags & 0x07) == 0x04) ||
-                ((splitreq.flags & 0x07) == 0x0)) {
-                
-                if (splitreq.flags & MDP_ROT_90) {
-                        s_y_0 = s_y_1 = req->src_rect.y;
-                        s_h_0 = s_h_1 = req->src_rect.h;
-                        s_x_0 = req->src_rect.x;
-                        s_w_1 = (req->src_rect.w * d_h_1) / req->dst_rect.h;
-                        s_w_0 = req->src_rect.w - s_w_1;
-                        s_x_1 = s_x_0 + s_w_0;
-                        if (d_h_1 >= 8 * s_w_1) {
-                                s_w_1++;
-                                s_x_1--;
-                        }
-                } else {
-                        s_x_0 = s_x_1 = req->src_rect.x;
-                        s_w_0 = s_w_1 = req->src_rect.w;
-                        s_y_0 = req->src_rect.y;
-                        s_h_1 = (req->src_rect.h * d_h_1) / req->dst_rect.h;
-                        s_h_0 = req->src_rect.h - s_h_1;
-                        s_y_1 = s_y_0 + s_h_0;
-                        if (d_h_1 >= 8 * s_h_1) {
-                                s_h_1++;
-                                s_y_1--;
-                        }
-                }
+	int ret;
+	struct mdp_blit_req splitreq;
+	int s_x_0, s_x_1, s_w_0, s_w_1, s_y_0, s_y_1, s_h_0, s_h_1;
+	int d_x_0, d_x_1, d_w_0, d_w_1, d_y_0, d_y_1, d_h_0, d_h_1;
 
-                splitreq.src_rect.h = s_h_0;
-                splitreq.src_rect.y = s_y_0;
-                splitreq.dst_rect.h = d_h_0;
-                splitreq.dst_rect.y = d_y_0;
-                splitreq.src_rect.x = s_x_0;
-                splitreq.src_rect.w = s_w_0;
-                splitreq.dst_rect.x = d_x_0;
-                splitreq.dst_rect.w = d_w_0;
-        } else {
+	splitreq = *req;
+	/* break dest roi at height*/
+	d_x_0 = d_x_1 = req->dst_rect.x;
+	d_w_0 = d_w_1 = req->dst_rect.w;
+	d_y_0 = req->dst_rect.y;
+	if (req->dst_rect.h % 32 == 3)
+		d_h_1 = (req->dst_rect.h - 3) / 2 - 1;
+	else if (req->dst_rect.h % 32 == 2)
+		d_h_1 = (req->dst_rect.h - 2) / 2 - 6;
+	else
+		d_h_1 = (req->dst_rect.h - 1) / 2 - 1;
+	d_h_0 = req->dst_rect.h - d_h_1;
+	d_y_1 = d_y_0 + d_h_0;
+	if (req->dst_rect.h == 3) {
+		d_h_1 = 2;
+		d_h_0 = 2;
+		d_y_1 = d_y_0 + 1;
+	}
 
-                if (splitreq.flags & MDP_ROT_90) {
-                        s_y_0 = s_y_1 = req->src_rect.y;
-                        s_h_0 = s_h_1 = req->src_rect.h;
-                        s_x_0 = req->src_rect.x;
-                        s_w_1 = (req->src_rect.w * d_h_0) / req->dst_rect.h;
-                        s_w_0 = req->src_rect.w - s_w_1;
-                        s_x_1 = s_x_0 + s_w_0;
-                        if (d_h_0 >= 8 * s_w_1) {
-                                s_w_1++;
-                                s_x_1--;
-                        }
-                } else {
-                        s_x_0 = s_x_1 = req->src_rect.x;
-                        s_w_0 = s_w_1 = req->src_rect.w;
-                        s_y_0 = req->src_rect.y;
-                        s_h_1 = (req->src_rect.h * d_h_0) / req->dst_rect.h;
-                        s_h_0 = req->src_rect.h - s_h_1;
-                        s_y_1 = s_y_0 + s_h_0;
-                        if (d_h_0 >= 8 * s_h_1) {
-                                s_h_1++;
-                                s_y_1--;
-                        }
-                }
-                splitreq.src_rect.h = s_h_0;
-                splitreq.src_rect.y = s_y_0;
-                splitreq.dst_rect.h = d_h_1;
-                splitreq.dst_rect.y = d_y_1;
-                splitreq.src_rect.x = s_x_0;
-                splitreq.src_rect.w = s_w_0;
-                splitreq.dst_rect.x = d_x_1;
-                splitreq.dst_rect.w = d_w_1;
-        }
-        ret = mdp_ppp_blit(info, &splitreq);
-        if (ret)
-                return ret;
+	/* blit first region */
+	if (((splitreq.flags & 0x07) == 0x04) ||
+		((splitreq.flags & 0x07) == 0x0)) {
 
-        /* blit second region */
-        if (((splitreq.flags & 0x07) == 0x04) ||
-                ((splitreq.flags & 0x07) == 0x0)) {
-                splitreq.src_rect.h = s_h_1;
-                splitreq.src_rect.y = s_y_1;
-                splitreq.dst_rect.h = d_h_1;
-                splitreq.dst_rect.y = d_y_1;
-                splitreq.src_rect.x = s_x_1;
-                splitreq.src_rect.w = s_w_1;
-                splitreq.dst_rect.x = d_x_1;
-                splitreq.dst_rect.w = d_w_1;
-        } else {
-                splitreq.src_rect.h = s_h_1;
-                splitreq.src_rect.y = s_y_1;
-                splitreq.dst_rect.h = d_h_0;
-                splitreq.dst_rect.y = d_y_0;
-                splitreq.src_rect.x = s_x_1;
-                splitreq.src_rect.w = s_w_1;
-                splitreq.dst_rect.x = d_x_0;
-                splitreq.dst_rect.w = d_w_0;
-        }
-        ret = mdp_ppp_blit(info, &splitreq);
-        return ret;
+		if (splitreq.flags & MDP_ROT_90) {
+			s_y_0 = s_y_1 = req->src_rect.y;
+			s_h_0 = s_h_1 = req->src_rect.h;
+			s_x_0 = req->src_rect.x;
+			s_w_1 = (req->src_rect.w * d_h_1) / req->dst_rect.h;
+			s_w_0 = req->src_rect.w - s_w_1;
+			s_x_1 = s_x_0 + s_w_0;
+			if (d_h_1 >= 8 * s_w_1) {
+				s_w_1++;
+				s_x_1--;
+			}
+		} else {
+			s_x_0 = s_x_1 = req->src_rect.x;
+			s_w_0 = s_w_1 = req->src_rect.w;
+			s_y_0 = req->src_rect.y;
+			s_h_1 = (req->src_rect.h * d_h_1) / req->dst_rect.h;
+			s_h_0 = req->src_rect.h - s_h_1;
+			s_y_1 = s_y_0 + s_h_0;
+			if (d_h_1 >= 8 * s_h_1) {
+				s_h_1++;
+				s_y_1--;
+			}
+		}
+
+		splitreq.src_rect.h = s_h_0;
+		splitreq.src_rect.y = s_y_0;
+		splitreq.dst_rect.h = d_h_0;
+		splitreq.dst_rect.y = d_y_0;
+		splitreq.src_rect.x = s_x_0;
+		splitreq.src_rect.w = s_w_0;
+		splitreq.dst_rect.x = d_x_0;
+		splitreq.dst_rect.w = d_w_0;
+	} else {
+
+		if (splitreq.flags & MDP_ROT_90) {
+			s_y_0 = s_y_1 = req->src_rect.y;
+			s_h_0 = s_h_1 = req->src_rect.h;
+			s_x_0 = req->src_rect.x;
+			s_w_1 = (req->src_rect.w * d_h_0) / req->dst_rect.h;
+			s_w_0 = req->src_rect.w - s_w_1;
+			s_x_1 = s_x_0 + s_w_0;
+			if (d_h_0 >= 8 * s_w_1) {
+				s_w_1++;
+				s_x_1--;
+			}
+		} else {
+			s_x_0 = s_x_1 = req->src_rect.x;
+			s_w_0 = s_w_1 = req->src_rect.w;
+			s_y_0 = req->src_rect.y;
+			s_h_1 = (req->src_rect.h * d_h_0) / req->dst_rect.h;
+			s_h_0 = req->src_rect.h - s_h_1;
+			s_y_1 = s_y_0 + s_h_0;
+			if (d_h_0 >= 8 * s_h_1) {
+				s_h_1++;
+				s_y_1--;
+			}
+		}
+		splitreq.src_rect.h = s_h_0;
+		splitreq.src_rect.y = s_y_0;
+		splitreq.dst_rect.h = d_h_1;
+		splitreq.dst_rect.y = d_y_1;
+		splitreq.src_rect.x = s_x_0;
+		splitreq.src_rect.w = s_w_0;
+		splitreq.dst_rect.x = d_x_1;
+		splitreq.dst_rect.w = d_w_1;
+	}
+	ret = mdp_ppp_blit(info, &splitreq);
+	if (ret)
+		return ret;
+
+	/* blit second region */
+	if (((splitreq.flags & 0x07) == 0x04) ||
+		((splitreq.flags & 0x07) == 0x0)) {
+		splitreq.src_rect.h = s_h_1;
+		splitreq.src_rect.y = s_y_1;
+		splitreq.dst_rect.h = d_h_1;
+		splitreq.dst_rect.y = d_y_1;
+		splitreq.src_rect.x = s_x_1;
+		splitreq.src_rect.w = s_w_1;
+		splitreq.dst_rect.x = d_x_1;
+		splitreq.dst_rect.w = d_w_1;
+	} else {
+		splitreq.src_rect.h = s_h_1;
+		splitreq.src_rect.y = s_y_1;
+		splitreq.dst_rect.h = d_h_0;
+		splitreq.dst_rect.y = d_y_0;
+		splitreq.src_rect.x = s_x_1;
+		splitreq.src_rect.w = s_w_1;
+		splitreq.dst_rect.x = d_x_0;
+		splitreq.dst_rect.w = d_w_0;
+	}
+	ret = mdp_ppp_blit(info, &splitreq);
+	return ret;
 }
 #endif
 
@@ -3006,14 +3022,5 @@ int __init msm_fb_init(void)
 
 	return 0;
 }
-
-#ifdef CONFIG_LGE_HIDDEN_RESET_PATCH
-void *lge_get_fb_addr(void)
-{
-	return (fbram - (320 * 480 * 2 * 2));
-}
-#endif
-
-int msm_fb_refesh_enabled = 1;  // LGE_CHANGE [bluerti@lge.com] 2009-07-18
 
 module_init(msm_fb_init);
