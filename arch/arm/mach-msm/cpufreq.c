@@ -248,7 +248,7 @@ static int msm_cpufreq_pm_event(struct notifier_block *this,
 	}
 }
 
-static struct freq_attr *msm_cpufreq_attr[] {
+static struct freq_attr *msm_cpufreq_attr[] = {
 	&cpufreq_freq_attr_scaling_available_freqs,
 	NULL,
 };
